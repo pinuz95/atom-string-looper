@@ -1,6 +1,7 @@
 _aEnums = [
     [ "yes", "no" ]
     [ "true", "false" ]
+    [ "True", "False" ]
     [ "relative", "absolute", "fixed"  ]
     [ "top", "bottom" ]
     [ "left", "right" ]
@@ -15,8 +16,6 @@ _aEnums = [
     [ "TODO", "DONE", "FIXME" ]
 ]
 
-_iCurrentLoop = 0
-_sCurrentWord = null
 _rNumberExtractor = /^-?(\d+|\d+\.|\d+\.+\d+|\.\d+){1}[a-zA-Z%]*$/
 _rNumberMatcher = /[0-9\.-]/
 
@@ -105,22 +104,29 @@ module.exports =
 
             # cycle (lowercase/uppercase/camelCase at cursor position)
             else
-                if _sCurrentWord isnt sWord.toLowerCase()
-                    _iCurrentLoop = switch
-                        when sWord.toLowerCase() is sWord then 1
-                        when sWord.toUpperCase() is sWord then 2
-                        else 0
-                    _sCurrentWord = sWord
-                switch _iCurrentLoop
+                sNewWord = sWord
+                iCursorPosition = oCursor.getBufferPosition().column - oCursorWordRange.start.column
+                iCurrentLoop = switch
+                    # detect snakeCase
+                    when sNewWord.slice(iCursorPosition, iCursorPosition + 1) is "_"
+                      sNewWord = sNewWord.slice( 0, iCursorPosition ).toLowerCase() + sNewWord.slice( iCursorPosition + 1).toLowerCase()
+                      if sDirection is "up" then 0 else 2
+                    when sNewWord.toLowerCase() is sNewWord
+                      if sDirection is "up" then 1 else 3
+                    when sNewWord.toUpperCase() is sNewWord
+                      if sDirection is "up" then 2 else 0
+                    else
+                      if sDirection is "up" then 3 else 1
+                switch iCurrentLoop
                     when 0 # lowerCase
-                        sNewWord = sWord.toLowerCase()
+                        sNewWord = sNewWord.toLowerCase()
                     when 1 # upperCase
-                        sNewWord = sWord.toUpperCase()
+                        sNewWord = sNewWord.toUpperCase()
                     when 2 # camelCase at cursor position
                         iCursorPosition = oCursor.getBufferPosition().column - oCursorWordRange.start.column
-                        sNewWord = sWord.slice( 0, iCursorPosition ).toLowerCase() + sWord.slice( iCursorPosition, iCursorPosition + 1 ).toUpperCase() + sWord.slice( iCursorPosition + 1 ).toLowerCase()
-                ++_iCurrentLoop > 2 and ( _iCurrentLoop = 0 )
-
+                        sNewWord = sNewWord.slice( 0, iCursorPosition ).toLowerCase() + sNewWord.slice( iCursorPosition, iCursorPosition + 1 ).toUpperCase() + sNewWord.slice( iCursorPosition + 1 ).toLowerCase()
+                    when 3 # snakeCase at cursor position
+                        sNewWord = sNewWord.slice( 0, iCursorPosition ).toLowerCase() + "_" + sNewWord.slice( iCursorPosition).toLowerCase()
             oEditor.setTextInBufferRange oCursorWordRange, sNewWord
 
         oEditor.setCursorBufferPosition aCursorPositions[ aCursorPositions.length - 1 ]
